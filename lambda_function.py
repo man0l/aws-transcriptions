@@ -18,6 +18,7 @@ def lambda_handler(event, context):
         TranscriptionJobName=job_name,
         Media={'MediaFileUri': media_uri},
         MediaFormat=key.split('.')[-1],
+        LanguageCode='bg-BG',
         OutputBucketName=os.environ['OUTPUT_BUCKET'],
         OutputKey=f'transcripts/{job_name}.json',
         Settings={

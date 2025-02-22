@@ -69,7 +69,8 @@ resource "aws_iam_role_policy" "transcription_lambda_policy" {
         Action = [
           "transcribe:*",
           "s3:GetObject",
-          "s3:ListBucket"
+          "s3:ListBucket",
+          "s3:PutObject"
         ]
         Resource = [
           aws_s3_bucket.raw_media_input.arn,
@@ -93,12 +94,13 @@ resource "aws_iam_role_policy" "transcription_lambda_policy" {
 
 # Lambda Function
 resource "aws_lambda_function" "transcription_processor" {
-  filename      = data.archive_file.lambda_zip.output_path
-  function_name = "${var.project_prefix}-transcription-processor"
-  role          = aws_iam_role.transcription_lambda_role.arn
-  handler       = "lambda_function.lambda_handler"
-  runtime       = "python3.9"
-  timeout       = 300
+  filename         = data.archive_file.lambda_zip.output_path
+  function_name    = "${var.project_prefix}-transcription-processor"
+  role            = aws_iam_role.transcription_lambda_role.arn
+  handler         = "lambda_function.lambda_handler"
+  runtime         = "python3.9"
+  timeout         = 300
+  source_code_hash = data.archive_file.lambda_zip.output_base64sha256
 
   environment {
     variables = {
