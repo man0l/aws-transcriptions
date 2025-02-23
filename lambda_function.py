@@ -35,8 +35,10 @@ def lambda_handler(event, context):
             OutputBucketName=os.environ['OUTPUT_BUCKET'],
             OutputKey=f'transcripts/{job_name}.json',
             Settings={
-                'ShowSpeakerLabels': True,
-                'MaxSpeakerLabels': 5
+                
+            },
+            Subtitles={
+                'Formats': ['srt']
             }
         )
         
