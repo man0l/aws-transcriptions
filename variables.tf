@@ -7,5 +7,5 @@ variable "aws_region" {
 variable "project_prefix" {
   description = "Prefix to be used for all resource names"
   type        = string
-  default     = "audio-transcription"
+  default     = "transcribe-manol-eu1-20240222"
 } 
