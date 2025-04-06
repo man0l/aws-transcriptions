@@ -1,0 +1,14 @@
+{
+    "Records": [
+      {
+        "s3": {
+          "bucket": {
+            "name": "audio-transcription-demo-2024-processed-transcripts-output"
+          },
+          "object": {
+            "key": "transcripts/transcribe_1740324892.json"
+          }
+        }
+      }
+    ]
+  }
