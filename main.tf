@@ -13,13 +13,14 @@ data "archive_file" "lambda_zip" {
 
 # Create a ZIP file for chapter generator lambda with dependencies
 resource "null_resource" "install_dependencies" {
-  provisioner "local-exec" {
-    command = "mkdir -p lambda_package && pip install -r requirements.txt -t lambda_package/ && cp chapter_generator.py lambda_package/"
-  }
-
   triggers = {
     dependencies_versions = filemd5("${path.module}/requirements.txt")
     source_code = filemd5("${path.module}/chapter_generator.py")
+    force_rebuild = timestamp()
+  }
+
+  provisioner "local-exec" {
+    command = "${path.module}/create_lambda_package.sh"
   }
 }
 
