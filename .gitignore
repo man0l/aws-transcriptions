@@ -11,3 +11,4 @@ lambda_package/
 *.backup.old
 *.tfstate.old
 *.zip
+test/*
