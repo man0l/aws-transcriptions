@@ -1,6 +1,6 @@
 import boto3
 import os
-from urllib.parse import urlparse
+from urllib.parse import urlparse, quote
 import time
 
 def lambda_handler(event, context):
@@ -11,7 +11,10 @@ def lambda_handler(event, context):
         # Parse uploaded object details
         bucket = event['Records'][0]['s3']['bucket']['name']
         key = event['Records'][0]['s3']['object']['key']
-        media_uri = f's3://{bucket}/{key}'
+        
+        # URL encode the key while preserving the path structure
+        encoded_key = '/'.join(quote(part, safe='') for part in key.split('/'))
+        media_uri = f's3://{bucket}/{encoded_key}'
         
         # Configure transcription parameters
         # Generate a unique job name using timestamp
@@ -26,6 +29,7 @@ def lambda_handler(event, context):
             raise ValueError(f'Unsupported file format: {file_extension}')
         
         print(f'Starting transcription job: {job_name} for file: {key}')
+        print(f'Using encoded media URI: {media_uri}')
         
         response = transcribe.start_transcription_job(
             TranscriptionJobName=job_name,
