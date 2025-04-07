@@ -131,13 +131,13 @@ You are analyzing a transcript for a video that is approximately {video_duration
 1.  Keep titles concise (ideally 2-5 words).
 2.  Make titles highly descriptive and accurately reflect the content of that chapter segment.
 3.  Avoid overly generic titles like "Introduction," "Middle," "Conclusion" unless the content *truly* fits only that generic description (e.g., a formal introduction section). Prefer titles like "Understanding the Problem," "Step 1: Gathering Materials," "Analyzing the Results," "Final Thoughts & Next Steps."
-4.  **IMPORTANT: All chapter titles MUST be in Bulgarian language.** Even if the transcript is in another language, translate the chapter titles to Bulgarian.
+4.  **IMPORTANT: Detect the language of the input transcript and use that SAME LANGUAGE for all chapter titles.** The chapter titles should be in the same language as the transcript content.
 
 **Output Format (Strict Adherence Required):**
 
 *   Your output MUST consist ONLY of the chapter list.
 *   Each line must follow the format: `MM:SS Chapter Title`
-*   All chapter titles MUST be in Bulgarian language.
+*   All chapter titles MUST be in the same language as the transcript.
 *   Do NOT include brackets, extra words, explanations, notes, or any text before or after the chapter list.
 
 Here is the transcript:
