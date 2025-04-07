@@ -169,6 +169,21 @@ Here is the transcript:
         print(f"Error during content generation: {str(e)}")
         return "00:00 Introduction\n01:00 Main Content"
 
+def extract_plain_transcript(transcript_json):
+    """
+    Extract plain text from the transcript JSON and return it.
+    
+    Args:
+        transcript_json: The parsed JSON transcript
+        
+    Returns:
+        str: Plain text transcript extracted from the JSON
+    """
+    # Extract the full text from the transcript
+    if 'results' in transcript_json and 'transcripts' in transcript_json['results']:
+        return transcript_json['results']['transcripts'][0]['transcript']
+    return ""
+
 def lambda_handler(event, context):
     try:
         s3 = boto3.client('s3')
@@ -226,23 +241,36 @@ def lambda_handler(event, context):
         # Generate chapters using Gemini
         chapters = generate_chapters_with_gemini(detailed_transcript_text, video_duration_minutes)
         
-        # Create the output file name
+        # Create the output file names
         base_name = key.split('/')[-1].split('.')[0]
-        output_key = f"chapters/{base_name}_chapters.txt"
+        chapters_output_key = f"chapters/{base_name}_chapters.txt"
+        transcript_output_key = f"plain_text/{base_name}_transcript.txt"
+        
+        # Extract plain transcript text
+        plain_transcript = extract_plain_transcript(transcript_json)
         
         # Save the chapters to S3
         s3.put_object(
             Bucket=bucket,
-            Key=output_key,
+            Key=chapters_output_key,
             Body=chapters,
             ContentType='text/plain'
         )
         
-        print(f"Chapters saved to s3://{bucket}/{output_key}")
+        # Save the plain transcript text to S3
+        s3.put_object(
+            Bucket=bucket,
+            Key=transcript_output_key,
+            Body=plain_transcript,
+            ContentType='text/plain'
+        )
+        
+        print(f"Chapters saved to s3://{bucket}/{chapters_output_key}")
+        print(f"Plain transcript saved to s3://{bucket}/{transcript_output_key}")
         
         return {
             'statusCode': 200,
-            'body': f"Chapters generated and saved to {output_key}"
+            'body': f"Chapters generated and saved to {chapters_output_key}. Plain transcript saved to {transcript_output_key}"
         }
         
     except Exception as e:
