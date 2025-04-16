@@ -113,6 +113,29 @@ The transcription results are stored as JSON files with the following structure:
 - TLS 1.2+ encryption for data in transit
 - IAM roles with least privilege access
 - Private S3 buckets with no public access
+- Credentials are not hardcoded in code or configuration files
+
+## Setting Up Credentials
+
+This project uses external API credentials for Gemini AI and Supabase. To set up your credentials:
+
+1. Copy the template file to create your own secrets file:
+```bash
+cp secrets.auto.tfvars.template secrets.auto.tfvars
+```
+
+2. Edit the `secrets.auto.tfvars` file and add your credentials:
+```
+# Google Gemini API credentials
+gemini_api_key    = "your-gemini-api-key"
+gemini_model_name = "gemini-1.5-pro-latest"
+
+# Supabase credentials
+supabase_url     = "your-supabase-url"
+supabase_anon_key = "your-supabase-anon-key"
+```
+
+3. The `.gitignore` file is configured to exclude this file from version control, ensuring your credentials remain private.
 
 ## Cost Considerations
 

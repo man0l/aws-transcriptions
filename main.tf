@@ -239,8 +239,10 @@ resource "aws_lambda_function" "chapter_generator" {
   environment {
     variables = {
       GEMINI_API_KEY = var.gemini_api_key
-      GEMINI_MODEL_NAME = "gemini-1.5-pro-latest"
+      GEMINI_MODEL_NAME = var.gemini_model_name
       REGION = var.aws_region
+      SUPABASE_URL = var.supabase_url
+      SUPABASE_ANON_KEY = var.supabase_anon_key
     }
   }
 }

@@ -26,4 +26,16 @@ variable "gemini_model_name" {
   description = "Model name for the Google Gemini API"
   type        = string
   default     = "gemini-2.0-pro-exp-02-05"
+}
+
+variable "supabase_url" {
+  description = "URL for the Supabase API"
+  type        = string
+  sensitive   = true
+}
+
+variable "supabase_anon_key" {
+  description = "Anonymous key for the Supabase API"
+  type        = string
+  sensitive   = true
 } 

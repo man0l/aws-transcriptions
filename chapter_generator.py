@@ -7,6 +7,7 @@ from google.genai import types
 import time
 import re
 from urllib.parse import urlparse, unquote_plus
+from supabase import create_client, Client
 
 def format_time(seconds):
     """Convert seconds to HH:MM:SS format"""
@@ -185,6 +186,72 @@ def extract_plain_transcript(transcript_json):
         return transcript_json['results']['transcripts'][0]['transcript']
     return ""
 
+def update_supabase_document(user_id, video_id, transcript_text, chapters_text, detailed_transcript_text):
+    """
+    Update the Supabase database with transcription data and set processing status to completed.
+    
+    Args:
+        user_id: The user ID extracted from the file path
+        video_id: The video ID extracted from the file path
+        transcript_text: The plain transcript text
+        chapters_text: The generated chapters text
+        detailed_transcript_text: The transcript text with timestamps (not used in this update)
+    """
+    try:
+        # Initialize Supabase client
+        supabase_url = os.environ.get("SUPABASE_URL")
+        supabase_key = os.environ.get("SUPABASE_ANON_KEY")
+        
+        if not supabase_url or not supabase_key:
+            print("Error: SUPABASE_URL or SUPABASE_ANON_KEY environment variables not set.")
+            return False
+        
+        print(f"Connecting to Supabase at {supabase_url}")
+        supabase = create_client(supabase_url, supabase_key)
+        
+        # Query the documents table to find the document with matching user_id and content related to this video
+        print(f"Searching for document with user_id: {user_id} and content related to video: {video_id}")
+        
+        # First attempt to find by exact video_id in source_url or title
+        data, error = supabase.table("documents").select("id").eq("user_id", user_id).or_(f"source_url.ilike.%{video_id}%,title.ilike.%{video_id}%").execute()
+        
+        if error:
+            print(f"Error querying Supabase: {error}")
+            return False
+        
+        if not data[1] or len(data[1]) == 0:
+            # If no documents found by video_id, try to find the most recent document for this user
+            print(f"No document found with video_id: {video_id}, searching for most recent document for user_id: {user_id}")
+            data, error = supabase.table("documents").select("id").eq("user_id", user_id).order("created_at", desc=True).limit(1).execute()
+            
+            if error or not data[1] or len(data[1]) == 0:
+                print(f"No documents found for user_id: {user_id}")
+                return False
+        
+        document_id = data[1][0]["id"]
+        print(f"Found document with id: {document_id}")
+        
+        # Update the document with transcription data and processing status
+        update_data = {
+            "transcription": transcript_text,
+            "chapters": chapters_text,
+            "processing_status": "completed"
+        }
+        
+        print(f"Updating document {document_id} with transcription data")
+        result, error = supabase.table("documents").update(update_data).eq("id", document_id).execute()
+        
+        if error:
+            print(f"Error updating document: {error}")
+            return False
+        
+        print(f"Successfully updated document {document_id} with transcription data")
+        return True
+        
+    except Exception as e:
+        print(f"Error updating Supabase: {str(e)}")
+        return False
+
 def lambda_handler(event, context):
     try:
         s3 = boto3.client('s3')
@@ -253,6 +320,9 @@ def lambda_handler(event, context):
         # Expected format: transcribe_USER_ID_VIDEO_ID
         match = re.match(r'transcribe_([^_]+)_(.+)', base_name)
         
+        user_id = None
+        video_id = None
+        
         if match:
             user_id = match.group(1)
             video_id = match.group(2)
@@ -307,9 +377,27 @@ def lambda_handler(event, context):
         print(f"Chapters saved to s3://{bucket}/{chapters_output_key}")
         print(f"Plain transcript saved to s3://{bucket}/{transcript_output_key}")
         
+        # If we successfully extracted user_id and video_id, update the Supabase database
+        if user_id and video_id:
+            print(f"Updating Supabase database for user_id: {user_id}, video_id: {video_id}")
+            supabase_update_result = update_supabase_document(
+                user_id=user_id,
+                video_id=video_id,
+                transcript_text=plain_transcript,
+                chapters_text=chapters,
+                detailed_transcript_text=detailed_transcript_text
+            )
+            
+            if supabase_update_result:
+                print("Successfully updated Supabase database")
+            else:
+                print("Failed to update Supabase database")
+        else:
+            print("Missing user_id or video_id, skipping Supabase update")
+        
         return {
             'statusCode': 200,
-            'body': f"Chapters generated and saved to {chapters_output_key}. Plain transcript saved to {transcript_output_key}"
+            'body': f"Chapters generated and saved to {chapters_output_key}. Plain transcript saved to {transcript_output_key}. Supabase database updated."
         }
         
     except Exception as e:

@@ -3,3 +3,4 @@ requests
 google-genai
 pydantic
 exceptiongroup
+supabase==1.0.3
