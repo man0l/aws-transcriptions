@@ -2,6 +2,7 @@ import boto3
 import os
 from urllib.parse import urlparse, quote, unquote_plus
 import time
+import re
 
 def lambda_handler(event, context):
     try:
@@ -30,9 +31,48 @@ def lambda_handler(event, context):
             except:
                 raise ValueError(f"Cannot find S3 object with either decoded key '{decoded_key}' or original key '{key}'")
         
-        # Generate a unique job name using timestamp
-        timestamp = int(time.time())
-        job_name = f'transcribe_{timestamp}'
+        # Extract user ID and video ID from the key path
+        # Expected format: raw-media/USER_ID/VIDEO_ID.mp4 or users/USER_ID/videos/VIDEO_ID.mp4
+        path_parts = decoded_key.split('/')
+        
+        user_id = None
+        video_id = None
+        
+        # Try to find user ID and video ID in the path
+        if len(path_parts) >= 3 and path_parts[0] == "raw-media":
+            # Format: raw-media/USER_ID/VIDEO_ID.mp4
+            user_id = path_parts[1]
+            video_filename = path_parts[2]
+            # Extract video ID by removing the extension
+            video_id = os.path.splitext(video_filename)[0]
+        elif len(path_parts) >= 4 and path_parts[0] == "users" and path_parts[2] == "videos":
+            # Format: users/USER_ID/videos/VIDEO_ID.mp4
+            user_id = path_parts[1]
+            video_filename = path_parts[3]
+            # Extract video ID by removing the extension
+            video_id = os.path.splitext(video_filename)[0]
+        
+        # Fall back to timestamp if we couldn't extract the IDs
+        if not user_id or not video_id:
+            print("Could not extract user ID and video ID from path, using timestamp instead")
+            timestamp = int(time.time())
+            job_name = f'transcribe_{timestamp}'
+        else:
+            # Use user ID and video ID for the job name, but ensure it's valid for AWS Transcribe
+            # AWS Transcribe job names can only contain alphanumeric characters, hyphens, and underscores
+            # They must be less than 200 characters
+            # Clean user_id and video_id to ensure they're valid
+            clean_user_id = re.sub(r'[^a-zA-Z0-9_-]', '', user_id)
+            clean_video_id = re.sub(r'[^a-zA-Z0-9_-]', '', video_id)
+            
+            # Truncate if necessary
+            if len(clean_user_id) > 100:
+                clean_user_id = clean_user_id[:100]
+            if len(clean_video_id) > 90:
+                clean_video_id = clean_video_id[:90]
+                
+            job_name = f'transcribe_{clean_user_id}_{clean_video_id}'
+            print(f"Using job name based on user ID and video ID: {job_name}")
         
         # Get the file extension for MediaFormat
         file_extension = decoded_key.split('.')[-1].lower()
