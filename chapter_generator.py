@@ -5,7 +5,8 @@ import requests
 from google import genai
 from google.genai import types
 import time
-from urllib.parse import urlparse
+import re
+from urllib.parse import urlparse, unquote_plus
 
 def format_time(seconds):
     """Convert seconds to HH:MM:SS format"""
@@ -192,7 +193,10 @@ def lambda_handler(event, context):
         bucket = event['Records'][0]['s3']['bucket']['name']
         key = event['Records'][0]['s3']['object']['key']
         
-        print(f"Processing file: s3://{bucket}/{key}")
+        # S3 event notifications URL-encode the key, so we need to decode it properly
+        decoded_key = unquote_plus(key)
+        
+        print(f"Processing file: s3://{bucket}/{decoded_key}")
         
         # Only process JSON files in the transcripts folder
         if not key.startswith('transcripts/') or not key.endswith('.json'):
@@ -203,7 +207,7 @@ def lambda_handler(event, context):
             }
         
         # Get the transcript file
-        transcript_file = s3.get_object(Bucket=bucket, Key=key)
+        transcript_file = s3.get_object(Bucket=bucket, Key=decoded_key)
         transcript_content = transcript_file['Body'].read().decode('utf-8')
         transcript_json = json.loads(transcript_content)
         
@@ -241,13 +245,48 @@ def lambda_handler(event, context):
         # Generate chapters using Gemini
         chapters = generate_chapters_with_gemini(detailed_transcript_text, video_duration_minutes)
         
-        # Create the output file names
-        base_name = key.split('/')[-1].split('.')[0]
-        chapters_output_key = f"chapters/{base_name}_chapters.txt"
-        transcript_output_key = f"plain_text/{base_name}_transcript.txt"
+        # Extract file name while maintaining user_id and video_id information
+        # The file name format should be: transcribe_USER_ID_VIDEO_ID.json
+        base_name = os.path.basename(key).split('.')[0]  # e.g., transcribe_USER_ID_VIDEO_ID
+        
+        # Attempt to extract user_id and video_id from the base_name
+        # Expected format: transcribe_USER_ID_VIDEO_ID
+        match = re.match(r'transcribe_([^_]+)_(.+)', base_name)
+        
+        if match:
+            user_id = match.group(1)
+            video_id = match.group(2)
+            
+            # Use the same naming convention for consistency
+            chapters_output_key = f"chapters/{user_id}/{video_id}_chapters.txt"
+            transcript_output_key = f"plain_text/{user_id}/{video_id}_transcript.txt"
+            
+            print(f"Using consistent naming with user_id: {user_id} and video_id: {video_id}")
+        else:
+            # Fallback if pattern doesn't match
+            chapters_output_key = f"chapters/{base_name}_chapters.txt"
+            transcript_output_key = f"plain_text/{base_name}_transcript.txt"
+            
+            print(f"Could not extract user_id and video_id from the filename, using fallback naming")
         
         # Extract plain transcript text
         plain_transcript = extract_plain_transcript(transcript_json)
+        
+        # Ensure the directory exists in S3 by creating an empty marker if needed
+        if '/' in chapters_output_key:
+            directory_path = '/'.join(chapters_output_key.split('/')[:-1]) + '/'
+            try:
+                s3.head_object(Bucket=bucket, Key=directory_path)
+            except:
+                # Directory doesn't exist, create it (S3 doesn't have directories, but this helps with organization)
+                s3.put_object(Bucket=bucket, Key=directory_path, Body='')
+                
+        if '/' in transcript_output_key:
+            directory_path = '/'.join(transcript_output_key.split('/')[:-1]) + '/'
+            try:
+                s3.head_object(Bucket=bucket, Key=directory_path)
+            except:
+                s3.put_object(Bucket=bucket, Key=directory_path, Body='')
         
         # Save the chapters to S3
         s3.put_object(
