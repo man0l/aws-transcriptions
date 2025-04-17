@@ -214,7 +214,47 @@ def extract_plain_transcript(transcript_json):
         return transcript_json['results']['transcripts'][0]['transcript']
     return ""
 
-def update_supabase_document(user_id, video_id, transcript_text, chapters_text, detailed_transcript_text):
+def generate_summaries_with_gemini(transcript_text):
+    """
+    Use Gemini to generate both short and long summaries of the transcript.
+    
+    Args:
+        transcript_text: The plain transcript text.
+        
+    Returns:
+        tuple: (short_summary, long_summary)
+    """
+    try:
+        gemini = GeminiClient()
+        
+        # Generate short summary (1-2 sentences)
+        short_summary_prompt = f"""Generate a very concise 1-2 sentence summary of the following transcript that captures its main point or key takeaway. Keep it under 50 words.
+
+Transcript:
+{transcript_text}"""
+
+        short_summary = gemini.generate_content(short_summary_prompt)
+        
+        # Generate long summary (detailed overview)
+        long_summary_prompt = f"""Generate a detailed summary of the following transcript. The summary should:
+1. Be around 4-6 paragraphs
+2. Capture all major points and key details
+3. Maintain the logical flow of ideas
+4. Be written in clear, professional language
+5. Be comprehensive enough for someone to understand the full content without watching the video
+
+Transcript:
+{transcript_text}"""
+
+        long_summary = gemini.generate_content(long_summary_prompt)
+        
+        return short_summary.strip(), long_summary.strip()
+        
+    except Exception as e:
+        print(f"Error during summary generation: {str(e)}")
+        return "Error generating summary.", "Error generating detailed summary."
+
+def update_supabase_document(user_id, video_id, transcript_text, chapters_text, short_summary, long_summary):
     """
     Update the Supabase database with transcription data and set processing status to completed.
     
@@ -223,7 +263,8 @@ def update_supabase_document(user_id, video_id, transcript_text, chapters_text, 
         video_id: The video ID extracted from the file path
         transcript_text: The plain transcript text
         chapters_text: The generated chapters text
-        detailed_transcript_text: The transcript text with timestamps (not used in this update)
+        short_summary: The generated short summary
+        long_summary: The generated long summary
     """
     try:
         # Initialize Supabase client
@@ -255,31 +296,22 @@ def update_supabase_document(user_id, video_id, transcript_text, chapters_text, 
                 print(f"Found document with id: {document_id}")
                 print(f"Document details: title='{document.get('title')}', video_id='{document.get('video_id')}'")
                 
-                # Update the document with transcription data and processing status
+                # Update the document with all data in a single operation
                 update_data = {
                     "transcription": transcript_text,
-                    "processing_status": "transcribed"
+                    "processing_status": "completed",
+                    "short_summary": short_summary,
+                    "long_summary": long_summary,
+                    "chapters": chapters_text
                 }
                 
-                print(f"Updating document {document_id} with transcription data and setting status to 'transcribed'")
-                result = supabase.table("documents") \
-                    .update(update_data) \
-                    .eq("id", document_id) \
-                    .execute()
-                    
-                # Then update with chapters and set status to 'completed'
-                update_data = {
-                    "chapters": chapters_text,
-                    "processing_status": "completed"
-                }
-                
-                print(f"Updating document {document_id} with chapters and setting status to 'completed'")
+                print(f"Updating document {document_id} with transcription data, summaries, chapters, and setting status to 'completed'")
                 result = supabase.table("documents") \
                     .update(update_data) \
                     .eq("id", document_id) \
                     .execute()
                 
-                print(f"Successfully updated document {document_id} with transcription data and chapters")
+                print(f"Successfully updated document {document_id} with all data")
                 return True
             else:
                 print("No documents found matching the criteria")
@@ -353,6 +385,13 @@ def lambda_handler(event, context):
         # Generate chapters using Gemini
         chapters = generate_chapters_with_gemini(detailed_transcript_text, video_duration_minutes)
         
+        # Extract plain transcript text
+        plain_transcript = extract_plain_transcript(transcript_json)
+        
+        # Generate summaries
+        print("Generating short and long summaries...")
+        short_summary, long_summary = generate_summaries_with_gemini(plain_transcript)
+        
         # Extract file name while maintaining user_id and video_id information
         # The file name format should be: transcribe_USER_ID_VIDEO_ID_TIMESTAMP.json
         base_name = os.path.basename(key).split('.')[0]  # e.g., transcribe_USER_ID_VIDEO_ID_TIMESTAMP
@@ -379,9 +418,6 @@ def lambda_handler(event, context):
             transcript_output_key = f"plain_text/{base_name}_transcript.txt"
             
             print(f"Could not extract user_id and video_id from the filename, using fallback naming")
-        
-        # Extract plain transcript text
-        plain_transcript = extract_plain_transcript(transcript_json)
         
         # Ensure the directory exists in S3 by creating an empty marker if needed
         if '/' in chapters_output_key:
@@ -426,7 +462,8 @@ def lambda_handler(event, context):
                 video_id=video_id,
                 transcript_text=plain_transcript,
                 chapters_text=chapters,
-                detailed_transcript_text=detailed_transcript_text
+                short_summary=short_summary,
+                long_summary=long_summary
             )
             
             if supabase_update_result:
