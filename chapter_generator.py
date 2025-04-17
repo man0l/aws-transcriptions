@@ -213,22 +213,27 @@ def update_supabase_document(user_id, video_id, transcript_text, chapters_text, 
         print(f"Searching for document with user_id: {user_id} and content related to video: {video_id}")
         
         # First attempt to find by exact video_id in source_url or title
-        data, error = supabase.table("documents").select("id").eq("user_id", user_id).or_(f"source_url.ilike.%{video_id}%,title.ilike.%{video_id}%").execute()
+        data = supabase.table("documents") \
+            .select("id") \
+            .eq("user_id", user_id) \
+            .or_("source_url.ilike.%" + video_id + "%,title.ilike.%" + video_id + "%") \
+            .execute()
         
-        if error:
-            print(f"Error querying Supabase: {error}")
-            return False
-        
-        if not data[1] or len(data[1]) == 0:
+        if not data.data:
             # If no documents found by video_id, try to find the most recent document for this user
             print(f"No document found with video_id: {video_id}, searching for most recent document for user_id: {user_id}")
-            data, error = supabase.table("documents").select("id").eq("user_id", user_id).order("created_at", desc=True).limit(1).execute()
+            data = supabase.table("documents") \
+                .select("id") \
+                .eq("user_id", user_id) \
+                .order("created_at", desc=True) \
+                .limit(1) \
+                .execute()
             
-            if error or not data[1] or len(data[1]) == 0:
+            if not data.data:
                 print(f"No documents found for user_id: {user_id}")
                 return False
         
-        document_id = data[1][0]["id"]
+        document_id = data.data[0]["id"]
         print(f"Found document with id: {document_id}")
         
         # Update the document with transcription data and processing status
@@ -239,11 +244,10 @@ def update_supabase_document(user_id, video_id, transcript_text, chapters_text, 
         }
         
         print(f"Updating document {document_id} with transcription data")
-        result, error = supabase.table("documents").update(update_data).eq("id", document_id).execute()
-        
-        if error:
-            print(f"Error updating document: {error}")
-            return False
+        result = supabase.table("documents") \
+            .update(update_data) \
+            .eq("id", document_id) \
+            .execute()
         
         print(f"Successfully updated document {document_id} with transcription data")
         return True
