@@ -7,7 +7,7 @@ import re
 from datetime import datetime, timedelta
 from urllib.parse import urlparse, unquote_plus
 from gemini_client import GeminiClient
-from supabase_client import update_chapters
+from supabase_client import update_chapters, update_transcript
 
 def format_time(seconds):
     """Convert seconds to HH:MM:SS format"""
@@ -290,6 +290,14 @@ def lambda_handler(event, context):
         
         print(f"Chapters saved to s3://{bucket}/{chapters_output_key}")
         print(f"Plain transcript saved to s3://{bucket}/{transcript_output_key}")
+        
+        # Update document with transcript
+        try:
+            update_transcript(user_id, video_id, plain_transcript)
+            print("Updated document with transcript text")
+        except Exception as e:
+            print(f"Error updating transcript in Supabase: {str(e)}")
+            raise
         
         # Update document with chapters and set status to processing_summaries
         try:

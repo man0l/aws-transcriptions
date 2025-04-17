@@ -68,4 +68,12 @@ def update_summary(user_id, video_id, summary_text, summary_type):
     if summary_type == 'long':
         update_data["processing_status"] = "completed"
     
+    return update_document(user_id, video_id, update_data)
+
+def update_transcript(user_id, video_id, transcript_text):
+    """Update document with the full transcript text."""
+    update_data = {
+        "transcript": transcript_text
+    }
+    
     return update_document(user_id, video_id, update_data) 
