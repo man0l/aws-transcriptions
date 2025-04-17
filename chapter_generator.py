@@ -317,12 +317,12 @@ def lambda_handler(event, context):
         chapters = generate_chapters_with_gemini(detailed_transcript_text, video_duration_minutes)
         
         # Extract file name while maintaining user_id and video_id information
-        # The file name format should be: transcribe_USER_ID_VIDEO_ID.json
-        base_name = os.path.basename(key).split('.')[0]  # e.g., transcribe_USER_ID_VIDEO_ID
+        # The file name format should be: transcribe_USER_ID_VIDEO_ID_TIMESTAMP.json
+        base_name = os.path.basename(key).split('.')[0]  # e.g., transcribe_USER_ID_VIDEO_ID_TIMESTAMP
         
         # Attempt to extract user_id and video_id from the base_name
-        # Expected format: transcribe_USER_ID_VIDEO_ID
-        match = re.match(r'transcribe_([^_]+)_(.+)', base_name)
+        # Expected format: transcribe_USER_ID_VIDEO_ID_TIMESTAMP
+        match = re.match(r'transcribe_([^_]+)_([^_]+)_\d+$', base_name)
         
         user_id = None
         video_id = None
