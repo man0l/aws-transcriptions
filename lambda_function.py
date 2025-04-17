@@ -52,10 +52,12 @@ def lambda_handler(event, context):
             # Extract video ID by removing the extension
             video_id = os.path.splitext(video_filename)[0]
         
+        # Generate timestamp for unique job name
+        timestamp = int(time.time())
+        
         # Fall back to timestamp if we couldn't extract the IDs
         if not user_id or not video_id:
             print("Could not extract user ID and video ID from path, using timestamp instead")
-            timestamp = int(time.time())
             job_name = f'transcribe_{timestamp}'
         else:
             # Use user ID and video ID for the job name, but ensure it's valid for AWS Transcribe
@@ -65,14 +67,14 @@ def lambda_handler(event, context):
             clean_user_id = re.sub(r'[^a-zA-Z0-9_-]', '', user_id)
             clean_video_id = re.sub(r'[^a-zA-Z0-9_-]', '', video_id)
             
-            # Truncate if necessary
-            if len(clean_user_id) > 100:
-                clean_user_id = clean_user_id[:100]
-            if len(clean_video_id) > 90:
-                clean_video_id = clean_video_id[:90]
+            # Truncate if necessary (leaving room for timestamp)
+            if len(clean_user_id) > 80:
+                clean_user_id = clean_user_id[:80]
+            if len(clean_video_id) > 70:
+                clean_video_id = clean_video_id[:70]
                 
-            job_name = f'transcribe_{clean_user_id}_{clean_video_id}'
-            print(f"Using job name based on user ID and video ID: {job_name}")
+            job_name = f'transcribe_{clean_user_id}_{clean_video_id}_{timestamp}'
+            print(f"Using job name based on user ID and video ID with timestamp: {job_name}")
         
         # Get the file extension for MediaFormat
         file_extension = decoded_key.split('.')[-1].lower()
