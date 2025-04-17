@@ -32,8 +32,8 @@ Transcript:
 
 def lambda_handler(event, context):
     try:
-        # Parse the event detail
-        event_detail = json.loads(event['detail'])
+        # Get the event detail - it's already a dictionary, no need to parse
+        event_detail = event['detail']
         
         user_id = event_detail['user_id']
         video_id = event_detail['video_id']
