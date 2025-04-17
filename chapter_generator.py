@@ -9,6 +9,67 @@ import re
 from urllib.parse import urlparse, unquote_plus
 from supabase import create_client, Client
 
+class GeminiClient:
+    def __init__(self, api_key=None, model_name=None):
+        """
+        Initialize the Gemini client.
+        
+        Args:
+            api_key: Optional API key. If not provided, will try to get from environment.
+            model_name: Optional model name. If not provided, will use default from environment.
+        """
+        self.api_key = api_key or os.environ.get("GEMINI_API_KEY")
+        if not self.api_key:
+            raise ValueError("GEMINI_API_KEY not provided and not found in environment variables.")
+            
+        self.model_name = model_name or os.environ.get("GEMINI_MODEL_NAME", "gemini-1.5-pro-latest")
+        self.client = genai.Client(api_key=self.api_key)
+
+    def generate_content(self, prompt, response_type="text/plain", stream=True):
+        """
+        Generate content using Gemini model.
+        
+        Args:
+            prompt: The prompt text to send to Gemini
+            response_type: MIME type for response (default: text/plain)
+            stream: Whether to stream the response (default: True)
+            
+        Returns:
+            Generated content as string
+        """
+        contents = [
+            types.Content(
+                role="user",
+                parts=[types.Part.from_text(text=prompt)],
+            ),
+        ]
+        
+        generate_content_config = types.GenerateContentConfig(
+            response_mime_type=response_type,
+        )
+
+        try:
+            if stream:
+                response_text = ""
+                for chunk in self.client.models.generate_content_stream(
+                    model=self.model_name,
+                    contents=contents,
+                    config=generate_content_config,
+                ):
+                    if chunk.text:
+                        response_text += chunk.text
+                return response_text.strip()
+            else:
+                response = self.client.models.generate_content(
+                    model=self.model_name,
+                    contents=contents,
+                    config=generate_content_config,
+                )
+                return response.text.strip()
+        except Exception as e:
+            print(f"Error during content generation: {str(e)}")
+            raise
+
 def format_time(seconds):
     """Convert seconds to HH:MM:SS format"""
     m, s = divmod(int(seconds), 60)
@@ -84,26 +145,10 @@ def generate_chapters_with_gemini(detailed_transcript_text, video_duration_minut
     Returns:
         String containing generated chapter list.
     """
-    # Get API key from environment variable
-    api_key = os.environ.get("GEMINI_API_KEY")
-    # Default to gemini-1.5-pro-latest which handles complex instructions better
-    model = os.environ.get("GEMINI_MODEL_NAME", "gemini-1.5-pro-latest")
-    
-    if not api_key:
-        print("GEMINI_API_KEY environment variable not set.")
-        return "00:00 Introduction"
-    
-    # Initialize the client
-    client = genai.Client(
-        api_key=api_key,
-    )
-
-    # Create prompt for chapter generation with the fetched transcript
-    contents = [
-        types.Content(
-            role="user",
-            parts=[
-                types.Part.from_text(text=f"""Objective: Generate meaningful video chapters based on the provided transcript, prioritizing logical content structure over arbitrary time intervals.
+    try:
+        gemini = GeminiClient()
+        
+        prompt = f"""Objective: Generate meaningful video chapters based on the provided transcript, prioritizing logical content structure over arbitrary time intervals.
 
 **Context:**
 You are analyzing a transcript for a video that is approximately {video_duration_minutes} minutes long. Your goal is to create chapter markers that significantly enhance viewer navigation by identifying the distinct thematic sections, topic shifts, or key stages within the content.
@@ -143,32 +188,15 @@ You are analyzing a transcript for a video that is approximately {video_duration
 *   Do NOT include brackets, extra words, explanations, notes, or any text before or after the chapter list.
 
 Here is the transcript:
-{detailed_transcript_text}"""),
-            ],
-        ),
-    ]
-    
-    generate_content_config = types.GenerateContentConfig(
-        response_mime_type="text/plain",
-    )
+{detailed_transcript_text}"""
 
-    # Stream the response
-    try:
-        response_text = ""
-        for chunk in client.models.generate_content_stream(
-            model=model,
-            contents=contents,
-            config=generate_content_config,
-        ):
-            if chunk.text:
-                response_text += chunk.text
-                
+        response = gemini.generate_content(prompt)
         print("Generated chapters:")
-        print(response_text)
+        print(response)
+        return response
         
-        return response_text.strip()
     except Exception as e:
-        print(f"Error during content generation: {str(e)}")
+        print(f"Error during chapter generation: {str(e)}")
         return "00:00 Introduction\n01:00 Main Content"
 
 def extract_plain_transcript(transcript_json):
