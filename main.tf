@@ -405,6 +405,25 @@ resource "aws_iam_role_policy" "eventbridge_policy" {
   })
 }
 
+# EventBridge Rule for Summary Generation
+resource "aws_cloudwatch_event_rule" "summary_generation" {
+  name        = "${var.project_prefix}-summary-generation"
+  description = "Rule to trigger summary generation Lambda"
+
+  event_pattern = jsonencode({
+    source      = ["custom.transcription"]
+    detail-type = ["SummaryGenerationRequest"]
+  })
+}
+
+# EventBridge Target for Summary Generation
+resource "aws_cloudwatch_event_target" "summary_generation" {
+  rule      = aws_cloudwatch_event_rule.summary_generation.name
+  target_id = "SummaryGeneratorLambda"
+  arn       = aws_lambda_function.summary_generator.arn
+  role_arn  = aws_iam_role.eventbridge_role.arn
+}
+
 # Lambda permission to allow EventBridge invocation
 resource "aws_lambda_permission" "allow_eventbridge" {
   statement_id  = "AllowEventBridgeInvoke"
