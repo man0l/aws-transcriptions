@@ -2,73 +2,11 @@ import json
 import boto3
 import os
 import requests
-from google import genai
-from google.genai import types
 import time
 import re
 from urllib.parse import urlparse, unquote_plus
-from supabase import create_client, Client
-
-class GeminiClient:
-    def __init__(self, api_key=None, model_name=None):
-        """
-        Initialize the Gemini client.
-        
-        Args:
-            api_key: Optional API key. If not provided, will try to get from environment.
-            model_name: Optional model name. If not provided, will use default from environment.
-        """
-        self.api_key = api_key or os.environ.get("GEMINI_API_KEY")
-        if not self.api_key:
-            raise ValueError("GEMINI_API_KEY not provided and not found in environment variables.")
-            
-        self.model_name = model_name or os.environ.get("GEMINI_MODEL_NAME", "gemini-1.5-pro-latest")
-        self.client = genai.Client(api_key=self.api_key)
-
-    def generate_content(self, prompt, response_type="text/plain", stream=True):
-        """
-        Generate content using Gemini model.
-        
-        Args:
-            prompt: The prompt text to send to Gemini
-            response_type: MIME type for response (default: text/plain)
-            stream: Whether to stream the response (default: True)
-            
-        Returns:
-            Generated content as string
-        """
-        contents = [
-            types.Content(
-                role="user",
-                parts=[types.Part.from_text(text=prompt)],
-            ),
-        ]
-        
-        generate_content_config = types.GenerateContentConfig(
-            response_mime_type=response_type,
-        )
-
-        try:
-            if stream:
-                response_text = ""
-                for chunk in self.client.models.generate_content_stream(
-                    model=self.model_name,
-                    contents=contents,
-                    config=generate_content_config,
-                ):
-                    if chunk.text:
-                        response_text += chunk.text
-                return response_text.strip()
-            else:
-                response = self.client.models.generate_content(
-                    model=self.model_name,
-                    contents=contents,
-                    config=generate_content_config,
-                )
-                return response.text.strip()
-        except Exception as e:
-            print(f"Error during content generation: {str(e)}")
-            raise
+from gemini_client import GeminiClient
+from supabase_client import update_chapters
 
 def format_time(seconds):
     """Convert seconds to HH:MM:SS format"""
@@ -214,116 +152,50 @@ def extract_plain_transcript(transcript_json):
         return transcript_json['results']['transcripts'][0]['transcript']
     return ""
 
-def generate_summaries_with_gemini(transcript_text):
+def schedule_summary_generation(user_id, video_id, transcript_text, summary_type, delay_minutes=0):
     """
-    Use Gemini to generate both short and long summaries of the transcript.
+    Schedule a summary generation event using EventBridge.
     
     Args:
-        transcript_text: The plain transcript text.
-        
-    Returns:
-        tuple: (short_summary, long_summary)
-    """
-    try:
-        gemini = GeminiClient()
-        
-        # Generate short summary (1-2 sentences)
-        short_summary_prompt = f"""Generate a very concise 1-2 sentence summary of the following transcript that captures its main point or key takeaway. Keep it under 50 words.
-
-Transcript:
-{transcript_text}"""
-
-        short_summary = gemini.generate_content(short_summary_prompt)
-        
-        # Generate long summary (detailed overview)
-        long_summary_prompt = f"""Generate a detailed summary of the following transcript. The summary should:
-1. Be around 4-6 paragraphs
-2. Capture all major points and key details
-3. Maintain the logical flow of ideas
-4. Be written in clear, professional language
-5. Be comprehensive enough for someone to understand the full content without watching the video
-
-Transcript:
-{transcript_text}"""
-
-        long_summary = gemini.generate_content(long_summary_prompt)
-        
-        return short_summary.strip(), long_summary.strip()
-        
-    except Exception as e:
-        print(f"Error during summary generation: {str(e)}")
-        return "Error generating summary.", "Error generating detailed summary."
-
-def update_supabase_document(user_id, video_id, transcript_text, chapters_text, short_summary, long_summary):
-    """
-    Update the Supabase database with transcription data and set processing status to completed.
-    
-    Args:
-        user_id: The user ID extracted from the file path
-        video_id: The video ID extracted from the file path
+        user_id: The user ID
+        video_id: The video ID
         transcript_text: The plain transcript text
-        chapters_text: The generated chapters text
-        short_summary: The generated short summary
-        long_summary: The generated long summary
+        summary_type: Either 'short' or 'long'
+        delay_minutes: Number of minutes to delay the event
     """
     try:
-        # Initialize Supabase client
-        supabase_url = os.environ.get("SUPABASE_URL")
-        supabase_key = os.environ.get("SUPABASE_SERVICE_KEY")
+        events = boto3.client('events')
         
-        if not supabase_url or not supabase_key:
-            print("Error: SUPABASE_URL or SUPABASE_SERVICE_KEY environment variables not set.")
-            return False
+        # Calculate the event time
+        event_time = time.time() + (delay_minutes * 60)
         
-        print(f"Connecting to Supabase at {supabase_url}")
-        supabase = create_client(supabase_url, supabase_key)
+        # Create the event detail
+        event_detail = {
+            'user_id': user_id,
+            'video_id': video_id,
+            'transcript_text': transcript_text,
+            'summary_type': summary_type
+        }
         
-        # Query the documents table to find the document with matching user_id and video_id
-        print(f"Searching for document with user_id: {user_id} and video_id: {video_id}")
-        
-        try:
-            data = supabase.table("documents") \
-                .select("*") \
-                .eq("user_id", user_id) \
-                .eq("video_id", video_id) \
-                .execute()
-                
-            print(f"Query result: {data.data}")
-            
-            if data.data:
-                document = data.data[0]
-                document_id = document["id"]
-                print(f"Found document with id: {document_id}")
-                print(f"Document details: title='{document.get('title')}', video_id='{document.get('video_id')}'")
-                
-                # Update the document with all data in a single operation
-                update_data = {
-                    "transcription": transcript_text,
-                    "processing_status": "completed",
-                    "short_summary": short_summary,
-                    "long_summary": long_summary,
-                    "chapters": chapters_text
+        # Put the event
+        response = events.put_events(
+            Entries=[
+                {
+                    'Time': time.gmtime(event_time),
+                    'Source': 'custom.transcription',
+                    'DetailType': 'SummaryGenerationRequest',
+                    'Detail': json.dumps(event_detail),
+                    'EventBusName': 'default'
                 }
-                
-                print(f"Updating document {document_id} with transcription data, summaries, chapters, and setting status to 'completed'")
-                result = supabase.table("documents") \
-                    .update(update_data) \
-                    .eq("id", document_id) \
-                    .execute()
-                
-                print(f"Successfully updated document {document_id} with all data")
-                return True
-            else:
-                print("No documents found matching the criteria")
-                return False
-                
-        except Exception as e:
-            print(f"Error during Supabase query or update: {str(e)}")
-            return False
+            ]
+        )
+        
+        print(f"Scheduled {summary_type} summary generation event with response: {response}")
+        return response
         
     except Exception as e:
-        print(f"Error updating Supabase: {str(e)}")
-        return False
+        print(f"Error scheduling summary generation: {str(e)}")
+        raise
 
 def lambda_handler(event, context):
     try:
@@ -388,94 +260,53 @@ def lambda_handler(event, context):
         # Extract plain transcript text
         plain_transcript = extract_plain_transcript(transcript_json)
         
-        # Generate summaries
-        print("Generating short and long summaries...")
-        short_summary, long_summary = generate_summaries_with_gemini(plain_transcript)
-        
-        # Extract file name while maintaining user_id and video_id information
-        # The file name format should be: transcribe_USER_ID_VIDEO_ID_TIMESTAMP.json
-        base_name = os.path.basename(key).split('.')[0]  # e.g., transcribe_USER_ID_VIDEO_ID_TIMESTAMP
-        
-        # Attempt to extract user_id and video_id from the base_name
-        # Expected format: transcribe_USER_ID_VIDEO_ID_TIMESTAMP
+        # Extract user_id and video_id from the filename
+        base_name = os.path.basename(key).split('.')[0]
         match = re.match(r'transcribe_([^_]+)_([^_]+)_\d+$', base_name)
         
-        user_id = None
-        video_id = None
-        
-        if match:
-            user_id = match.group(1)
-            video_id = match.group(2)
+        if not match:
+            raise ValueError(f"Could not extract user_id and video_id from filename: {base_name}")
             
-            # Use the same naming convention for consistency
-            chapters_output_key = f"chapters/{user_id}/{video_id}_chapters.txt"
-            transcript_output_key = f"plain_text/{user_id}/{video_id}_transcript.txt"
-            
-            print(f"Using consistent naming with user_id: {user_id} and video_id: {video_id}")
-        else:
-            # Fallback if pattern doesn't match
-            chapters_output_key = f"chapters/{base_name}_chapters.txt"
-            transcript_output_key = f"plain_text/{base_name}_transcript.txt"
-            
-            print(f"Could not extract user_id and video_id from the filename, using fallback naming")
+        user_id = match.group(1)
+        video_id = match.group(2)
         
-        # Ensure the directory exists in S3 by creating an empty marker if needed
-        if '/' in chapters_output_key:
-            directory_path = '/'.join(chapters_output_key.split('/')[:-1]) + '/'
-            try:
-                s3.head_object(Bucket=bucket, Key=directory_path)
-            except:
-                # Directory doesn't exist, create it (S3 doesn't have directories, but this helps with organization)
-                s3.put_object(Bucket=bucket, Key=directory_path, Body='')
-                
-        if '/' in transcript_output_key:
-            directory_path = '/'.join(transcript_output_key.split('/')[:-1]) + '/'
-            try:
-                s3.head_object(Bucket=bucket, Key=directory_path)
-            except:
-                s3.put_object(Bucket=bucket, Key=directory_path, Body='')
+        # Save chapters to S3
+        chapters_output_key = f"chapters/{user_id}/{video_id}_chapters.txt"
+        transcript_output_key = f"plain_text/{user_id}/{video_id}_transcript.txt"
         
-        # Save the chapters to S3
-        s3.put_object(
-            Bucket=bucket,
-            Key=chapters_output_key,
-            Body=chapters,
-            ContentType='text/plain'
-        )
+        # Ensure directories exist
+        for output_key in [chapters_output_key, transcript_output_key]:
+            if '/' in output_key:
+                directory_path = '/'.join(output_key.split('/')[:-1]) + '/'
+                try:
+                    s3.head_object(Bucket=bucket, Key=directory_path)
+                except:
+                    s3.put_object(Bucket=bucket, Key=directory_path, Body='')
         
-        # Save the plain transcript text to S3
-        s3.put_object(
-            Bucket=bucket,
-            Key=transcript_output_key,
-            Body=plain_transcript,
-            ContentType='text/plain'
-        )
+        # Save files to S3
+        s3.put_object(Bucket=bucket, Key=chapters_output_key, Body=chapters, ContentType='text/plain')
+        s3.put_object(Bucket=bucket, Key=transcript_output_key, Body=plain_transcript, ContentType='text/plain')
         
         print(f"Chapters saved to s3://{bucket}/{chapters_output_key}")
         print(f"Plain transcript saved to s3://{bucket}/{transcript_output_key}")
         
-        # If we successfully extracted user_id and video_id, update the Supabase database
-        if user_id and video_id:
-            print(f"Updating Supabase database for user_id: {user_id}, video_id: {video_id}")
-            supabase_update_result = update_supabase_document(
-                user_id=user_id,
-                video_id=video_id,
-                transcript_text=plain_transcript,
-                chapters_text=chapters,
-                short_summary=short_summary,
-                long_summary=long_summary
-            )
-            
-            if supabase_update_result:
-                print("Successfully updated Supabase database")
-            else:
-                print("Failed to update Supabase database")
-        else:
-            print("Missing user_id or video_id, skipping Supabase update")
+        # Update document with chapters and set status to processing_summaries
+        try:
+            update_chapters(user_id, video_id, chapters)
+            print("Updated document with chapters and set status to processing_summaries")
+        except Exception as e:
+            print(f"Error updating Supabase: {str(e)}")
+            raise
+        
+        # Schedule summary generation events
+        # Schedule short summary first
+        schedule_summary_generation(user_id, video_id, full_transcript_text, 'short', delay_minutes=0)
+        # Schedule long summary with 1-minute delay
+        schedule_summary_generation(user_id, video_id, full_transcript_text, 'long', delay_minutes=1)
         
         return {
             'statusCode': 200,
-            'body': f"Chapters generated and saved to {chapters_output_key}. Plain transcript saved to {transcript_output_key}. Supabase database updated."
+            'body': f"Processing complete. Chapters saved and summary generation scheduled."
         }
         
     except Exception as e:

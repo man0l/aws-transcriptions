@@ -18,6 +18,9 @@ pip install --platform manylinux2014_x86_64 --implementation cp --python-version
 
 echo "Copying source code..."
 cp chapter_generator.py lambda_package/
+cp summary_generator.py lambda_package/
+cp gemini_client.py lambda_package/
+cp supabase_client.py lambda_package/
 
 echo "Deactivating virtual environment..."
 deactivate
@@ -26,4 +29,11 @@ rm -rf venv_lambda
 echo "Listing package contents:"
 ls -la lambda_package/
 
-echo "Package creation completed." 
+echo "Package creation completed."
+
+# Clean up unnecessary files to reduce package size
+cd lambda_package
+find . -type d -name "__pycache__" -exec rm -rf {} +
+find . -type d -name "*.dist-info" -exec rm -rf {} +
+find . -type d -name "*.egg-info" -exec rm -rf {} +
+cd .. 

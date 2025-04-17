@@ -268,4 +268,151 @@ resource "aws_lambda_permission" "allow_transcript_bucket" {
   function_name = aws_lambda_function.chapter_generator.function_name
   principal     = "s3.amazonaws.com"
   source_arn    = aws_s3_bucket.processed_transcripts_output.arn
-} 
+}
+
+# IAM Role for Summary Generator Lambda
+resource "aws_iam_role" "summary_generator_lambda_role" {
+  name = "${var.project_prefix}-summary-generator-role"
+
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Action = "sts:AssumeRole"
+        Effect = "Allow"
+        Principal = {
+          Service = "lambda.amazonaws.com"
+        }
+      }
+    ]
+  })
+}
+
+# IAM Policy for Summary Generator Lambda
+resource "aws_iam_role_policy" "summary_generator_lambda_policy" {
+  name = "${var.project_prefix}-summary-generator-policy"
+  role = aws_iam_role.summary_generator_lambda_role.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Action = [
+          "s3:GetObject",
+          "s3:ListBucket"
+        ]
+        Resource = [
+          aws_s3_bucket.processed_transcripts_output.arn,
+          "${aws_s3_bucket.processed_transcripts_output.arn}/*"
+        ]
+      },
+      {
+        Effect = "Allow"
+        Action = [
+          "logs:CreateLogGroup",
+          "logs:CreateLogStream",
+          "logs:PutLogEvents"
+        ]
+        Resource = ["arn:aws:logs:*:*:*"]
+      }
+    ]
+  })
+}
+
+# Summary Generator Lambda Function
+resource "aws_lambda_function" "summary_generator" {
+  filename         = data.archive_file.chapter_generator_zip.output_path
+  function_name    = "${var.project_prefix}-summary-generator"
+  role             = aws_iam_role.summary_generator_lambda_role.arn
+  handler          = "summary_generator.lambda_handler"
+  runtime          = "python3.9"
+  timeout          = 300
+  memory_size      = 256
+  source_code_hash = data.archive_file.chapter_generator_zip.output_base64sha256
+
+  environment {
+    variables = {
+      GEMINI_API_KEY = var.gemini_api_key
+      GEMINI_MODEL_NAME = var.gemini_model_name
+      SUPABASE_URL = var.supabase_url
+      SUPABASE_SERVICE_KEY = var.supabase_service_key
+    }
+  }
+}
+
+# IAM Policy for Chapter Generator Lambda to allow EventBridge
+resource "aws_iam_role_policy_attachment" "chapter_generator_eventbridge" {
+  role       = aws_iam_role.chapter_generator_lambda_role.name
+  policy_arn = "arn:aws:iam::aws:policy/service-role/AWSLambdaRole"
+}
+
+# Additional EventBridge permissions for Chapter Generator Lambda
+resource "aws_iam_role_policy" "chapter_generator_eventbridge_policy" {
+  name = "${var.project_prefix}-chapter-generator-eventbridge-policy"
+  role = aws_iam_role.chapter_generator_lambda_role.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Action = [
+          "events:PutEvents"
+        ]
+        Resource = ["*"]
+      }
+    ]
+  })
+}
+
+# EventBridge IAM Role
+resource "aws_iam_role" "eventbridge_role" {
+  name = "${var.project_prefix}-eventbridge-role"
+
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Action = "sts:AssumeRole"
+        Effect = "Allow"
+        Principal = {
+          Service = "events.amazonaws.com"
+        }
+      }
+    ]
+  })
+}
+
+# EventBridge IAM Policy
+resource "aws_iam_role_policy" "eventbridge_policy" {
+  name = "${var.project_prefix}-eventbridge-policy"
+  role = aws_iam_role.eventbridge_role.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Action = [
+          "lambda:InvokeFunction"
+        ]
+        Resource = [
+          aws_lambda_function.summary_generator.arn
+        ]
+      }
+    ]
+  })
+}
+
+# Lambda permission to allow EventBridge invocation
+resource "aws_lambda_permission" "allow_eventbridge" {
+  statement_id  = "AllowEventBridgeInvoke"
+  action        = "lambda:InvokeFunction"
+  function_name = aws_lambda_function.summary_generator.function_name
+  principal     = "events.amazonaws.com"
+  source_arn    = "arn:aws:events:${var.aws_region}:${data.aws_caller_identity.current.account_id}:rule/*"
+}
+
+# Get current AWS account ID
+data "aws_caller_identity" "current" {} 
