@@ -209,18 +209,14 @@ def update_supabase_document(user_id, video_id, transcript_text, chapters_text, 
         print(f"Connecting to Supabase at {supabase_url}")
         supabase = create_client(supabase_url, supabase_key)
         
-        # Query the documents table to find the document with matching user_id and content related to this video
-        print(f"Searching for document with user_id: {user_id} and content related to video: {video_id}")
-        
-        # Try to find by exact user_id and video_id in source_url
-        print("Attempting to find document by exact user_id and video_id in source_url...")
-        print(f"Query parameters: user_id={user_id}, video pattern=watch?v={video_id}")
+        # Query the documents table to find the document with matching user_id and video_id
+        print(f"Searching for document with user_id: {user_id} and video_id: {video_id}")
         
         try:
             data = supabase.table("documents") \
                 .select("*") \
                 .eq("user_id", user_id) \
-                .ilike("source_url", f"%{video_id}%") \
+                .eq("video_id", video_id) \
                 .execute()
                 
             print(f"Query result: {data.data}")
@@ -229,7 +225,7 @@ def update_supabase_document(user_id, video_id, transcript_text, chapters_text, 
                 document = data.data[0]
                 document_id = document["id"]
                 print(f"Found document with id: {document_id}")
-                print(f"Document details: title='{document.get('title')}', source_url='{document.get('source_url')}'")
+                print(f"Document details: title='{document.get('title')}', video_id='{document.get('video_id')}'")
                 
                 # Update the document with transcription data and processing status
                 update_data = {
