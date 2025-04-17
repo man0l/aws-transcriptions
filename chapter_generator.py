@@ -4,6 +4,7 @@ import os
 import requests
 import time
 import re
+from datetime import datetime, timedelta
 from urllib.parse import urlparse, unquote_plus
 from gemini_client import GeminiClient
 from supabase_client import update_chapters
@@ -166,8 +167,8 @@ def schedule_summary_generation(user_id, video_id, transcript_text, summary_type
     try:
         events = boto3.client('events')
         
-        # Calculate the event time
-        event_time = time.time() + (delay_minutes * 60)
+        # Calculate the event time using datetime
+        event_time = datetime.utcnow() + timedelta(minutes=delay_minutes)
         
         # Create the event detail
         event_detail = {
@@ -181,7 +182,7 @@ def schedule_summary_generation(user_id, video_id, transcript_text, summary_type
         response = events.put_events(
             Entries=[
                 {
-                    'Time': time.gmtime(event_time),
+                    'Time': event_time,
                     'Source': 'custom.transcription',
                     'DetailType': 'SummaryGenerationRequest',
                     'Detail': json.dumps(event_detail),
