@@ -212,18 +212,32 @@ def update_supabase_document(user_id, video_id, transcript_text, chapters_text, 
         # Query the documents table to find the document with matching user_id and content related to this video
         print(f"Searching for document with user_id: {user_id} and content related to video: {video_id}")
         
-        # First attempt to find by exact video_id in source_url or title
+        # First try to find by exact user_id and video_id in source_url
+        print("Attempting to find document by exact user_id and video_id in source_url...")
         data = supabase.table("documents") \
-            .select("id") \
+            .select("*") \
             .eq("user_id", user_id) \
-            .or_("source_url.ilike.%" + video_id + "%,title.ilike.%" + video_id + "%") \
+            .ilike("source_url", f"%{video_id}%") \
+            .order("created_at", desc=True) \
+            .limit(1) \
             .execute()
+            
+        if not data.data:
+            # If not found, try looking in the title
+            print("Not found in source_url, trying title...")
+            data = supabase.table("documents") \
+                .select("*") \
+                .eq("user_id", user_id) \
+                .ilike("title", f"%{video_id}%") \
+                .order("created_at", desc=True) \
+                .limit(1) \
+                .execute()
         
         if not data.data:
-            # If no documents found by video_id, try to find the most recent document for this user
+            # If still not found, try to find the most recent document for this user
             print(f"No document found with video_id: {video_id}, searching for most recent document for user_id: {user_id}")
             data = supabase.table("documents") \
-                .select("id") \
+                .select("*") \
                 .eq("user_id", user_id) \
                 .order("created_at", desc=True) \
                 .limit(1) \
@@ -233,23 +247,36 @@ def update_supabase_document(user_id, video_id, transcript_text, chapters_text, 
                 print(f"No documents found for user_id: {user_id}")
                 return False
         
-        document_id = data.data[0]["id"]
+        document = data.data[0]
+        document_id = document["id"]
         print(f"Found document with id: {document_id}")
+        print(f"Document details: title='{document.get('title')}', source_url='{document.get('source_url')}'")
         
-        # Update the document with transcription data and processing status
+        # First update the document with transcription and set status to 'transcribed'
         update_data = {
             "transcription": transcript_text,
+            "processing_status": "transcribed"
+        }
+        
+        print(f"Updating document {document_id} with transcription data and setting status to 'transcribed'")
+        result = supabase.table("documents") \
+            .update(update_data) \
+            .eq("id", document_id) \
+            .execute()
+            
+        # Then update with chapters and set status to 'completed'
+        update_data = {
             "chapters": chapters_text,
             "processing_status": "completed"
         }
         
-        print(f"Updating document {document_id} with transcription data")
+        print(f"Updating document {document_id} with chapters and setting status to 'completed'")
         result = supabase.table("documents") \
             .update(update_data) \
             .eq("id", document_id) \
             .execute()
         
-        print(f"Successfully updated document {document_id} with transcription data")
+        print(f"Successfully updated document {document_id} with transcription data and chapters")
         return True
         
     except Exception as e:
