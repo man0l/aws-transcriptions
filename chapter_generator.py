@@ -300,9 +300,9 @@ def lambda_handler(event, context):
         
         # Schedule summary generation events
         # Schedule short summary first
-        schedule_summary_generation(user_id, video_id, full_transcript_text, 'short', delay_minutes=0)
+        schedule_summary_generation(user_id, video_id, full_transcript_text, 'short', delay_minutes=1)
         # Schedule long summary with 1-minute delay
-        schedule_summary_generation(user_id, video_id, full_transcript_text, 'long', delay_minutes=1)
+        schedule_summary_generation(user_id, video_id, full_transcript_text, 'long', delay_minutes=2)
         
         return {
             'statusCode': 200,
