@@ -34,8 +34,8 @@ variable "supabase_url" {
   sensitive   = true
 }
 
-variable "supabase_anon_key" {
-  description = "Anonymous key for the Supabase API"
+variable "supabase_service_key" {
+  description = "Service role key for the Supabase API"
   type        = string
   sensitive   = true
 } 

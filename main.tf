@@ -242,7 +242,7 @@ resource "aws_lambda_function" "chapter_generator" {
       GEMINI_MODEL_NAME = var.gemini_model_name
       REGION = var.aws_region
       SUPABASE_URL = var.supabase_url
-      SUPABASE_ANON_KEY = var.supabase_anon_key
+      SUPABASE_SERVICE_KEY = var.supabase_service_key
     }
   }
 }

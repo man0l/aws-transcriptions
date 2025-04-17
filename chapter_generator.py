@@ -200,10 +200,10 @@ def update_supabase_document(user_id, video_id, transcript_text, chapters_text, 
     try:
         # Initialize Supabase client
         supabase_url = os.environ.get("SUPABASE_URL")
-        supabase_key = os.environ.get("SUPABASE_ANON_KEY")
+        supabase_key = os.environ.get("SUPABASE_SERVICE_KEY")
         
         if not supabase_url or not supabase_key:
-            print("Error: SUPABASE_URL or SUPABASE_ANON_KEY environment variables not set.")
+            print("Error: SUPABASE_URL or SUPABASE_SERVICE_KEY environment variables not set.")
             return False
         
         print(f"Connecting to Supabase at {supabase_url}")
