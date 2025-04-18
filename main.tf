@@ -76,6 +76,28 @@ resource "aws_s3_bucket_public_access_block" "processed_transcripts_output" {
   restrict_public_buckets = true
 }
 
+# Document Upload S3 Bucket
+resource "aws_s3_bucket" "document_upload" {
+  bucket = "${var.project_prefix}-document-upload"
+  force_destroy = true
+}
+
+resource "aws_s3_bucket_versioning" "document_upload" {
+  bucket = aws_s3_bucket.document_upload.id
+  versioning_configuration {
+    status = "Enabled"
+  }
+}
+
+resource "aws_s3_bucket_public_access_block" "document_upload" {
+  bucket = aws_s3_bucket.document_upload.id
+
+  block_public_acls       = true
+  block_public_policy     = true
+  ignore_public_acls      = true
+  restrict_public_buckets = true
+}
+
 # IAM Role for Lambda
 resource "aws_iam_role" "transcription_lambda_role" {
   name = "${var.project_prefix}-lambda-role"

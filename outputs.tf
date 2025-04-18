@@ -3,6 +3,11 @@ output "raw_media_bucket_name" {
   value       = aws_s3_bucket.raw_media_input.id
 }
 
+output "documents_bucket_name" {
+  description = "Name of the S3 bucket for documents"
+  value       = aws_s3_bucket.document_upload.id
+}
+
 output "processed_transcripts_bucket_name" {
   description = "Name of the S3 bucket for processed transcripts"
   value       = aws_s3_bucket.processed_transcripts_output.id
