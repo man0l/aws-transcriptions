@@ -85,7 +85,7 @@ variable "youtube_api_key" {
 }
 
 variable "openai_api_key" {
-  description = "OpenAI API key for AI content extraction"
+  description = "OpenAI API key for frontend content extraction"
   type        = string
   sensitive   = true
 } 

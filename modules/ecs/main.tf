@@ -239,7 +239,7 @@ resource "aws_ecs_task_definition" "worker" {
         { name = "AWS_ACCESS_KEY_ID", value = var.aws_access_key_id },
         { name = "AWS_SECRET_ACCESS_KEY", value = var.aws_secret_access_key },
         { name = "VITE_YOUTUBE_API_KEY", value = var.youtube_api_key },
-        { name = "OPENAI_API_KEY", value = var.openai_api_key }
+        { name = "VITE_OPENAI_API_KEY", value = var.openai_api_key }
       ]
 
       secrets = [
