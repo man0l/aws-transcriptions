@@ -82,4 +82,10 @@ variable "aws_secret_access_key" {
 variable "youtube_api_key" {
   description = "YouTube API key for the worker"
   type        = string
+}
+
+variable "openai_api_key" {
+  description = "OpenAI API key for AI content extraction"
+  type        = string
+  sensitive   = true
 } 

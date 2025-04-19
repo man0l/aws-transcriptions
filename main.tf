@@ -489,4 +489,5 @@ module "ecs_worker" {
   aws_access_key_id     = var.aws_access_key_id
   aws_secret_access_key = var.aws_secret_access_key
   youtube_api_key       = var.youtube_api_key
+  openai_api_key        = var.openai_api_key
 } 
