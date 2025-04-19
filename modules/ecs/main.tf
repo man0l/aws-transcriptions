@@ -234,13 +234,16 @@ resource "aws_ecs_task_definition" "worker" {
         { name = "AWS_REGION", value = var.aws_region },
         { name = "RAW_MEDIA_BUCKET", value = var.raw_media_bucket },
         { name = "PROCESSED_TRANSCRIPTS_BUCKET", value = var.processed_transcripts_bucket },
-        { name = "SUPABASE_URL", value = var.supabase_url },
-        { name = "PROJECT_PREFIX", value = var.project_prefix }
+        { name = "VITE_SUPABASE_URL", value = var.supabase_url },
+        { name = "PROJECT_PREFIX", value = var.project_prefix },
+        { name = "AWS_ACCESS_KEY_ID", value = var.aws_access_key_id },
+        { name = "AWS_SECRET_ACCESS_KEY", value = var.aws_secret_access_key },
+        { name = "VITE_YOUTUBE_API_KEY", value = var.youtube_api_key }
       ]
 
       secrets = [
         {
-          name      = "SUPABASE_SERVICE_KEY"
+          name      = "SUPABASE_SERVICE_ROLE_KEY"
           valueFrom = var.supabase_service_key_arn
         }
       ]

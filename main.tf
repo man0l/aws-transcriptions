@@ -484,4 +484,9 @@ module "ecs_worker" {
   task_cpu       = 2048    # 2 vCPU
   task_memory    = 4096    # 4GB RAM
   desired_count  = 1       # Number of tasks to run
+
+  # New variables
+  aws_access_key_id     = var.aws_access_key_id
+  aws_secret_access_key = var.aws_secret_access_key
+  youtube_api_key       = var.youtube_api_key
 } 

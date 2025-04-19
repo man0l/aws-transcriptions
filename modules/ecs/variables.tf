@@ -67,4 +67,19 @@ variable "container_image_tag" {
   description = "Container image tag to use"
   type        = string
   default     = "latest"
+}
+
+variable "aws_access_key_id" {
+  description = "AWS access key ID for the worker"
+  type        = string
+}
+
+variable "aws_secret_access_key" {
+  description = "AWS secret access key for the worker"
+  type        = string
+}
+
+variable "youtube_api_key" {
+  description = "YouTube API key for the worker"
+  type        = string
 } 
