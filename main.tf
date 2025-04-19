@@ -456,4 +456,32 @@ resource "aws_lambda_permission" "allow_eventbridge" {
 }
 
 # Get current AWS account ID
-data "aws_caller_identity" "current" {} 
+data "aws_caller_identity" "current" {}
+
+# Create a secret for Supabase service key
+resource "aws_secretsmanager_secret" "supabase_service_key" {
+  name = "${var.project_prefix}-supabase-service-key"
+}
+
+resource "aws_secretsmanager_secret_version" "supabase_service_key" {
+  secret_id     = aws_secretsmanager_secret.supabase_service_key.id
+  secret_string = var.supabase_service_key
+}
+
+# ECS Worker Module
+module "ecs_worker" {
+  source = "./modules/ecs"
+
+  project_prefix               = var.project_prefix
+  aws_region                  = var.aws_region
+  availability_zones          = ["${var.aws_region}a", "${var.aws_region}b"]
+  raw_media_bucket           = aws_s3_bucket.raw_media_input.id
+  processed_transcripts_bucket = aws_s3_bucket.processed_transcripts_output.id
+  supabase_url               = var.supabase_url
+  supabase_service_key_arn   = aws_secretsmanager_secret.supabase_service_key.arn
+
+  # Optional customizations
+  task_cpu       = 2048    # 2 vCPU
+  task_memory    = 4096    # 4GB RAM
+  desired_count  = 1       # Number of tasks to run
+} 
