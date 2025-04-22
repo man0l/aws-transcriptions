@@ -88,4 +88,34 @@ variable "openai_api_key" {
   description = "OpenAI API key for frontend content extraction"
   type        = string
   sensitive   = true
+}
+
+variable "proxy_enabled" {
+  description = "Whether to enable proxy for the ECS tasks"
+  type        = string
+  default     = "false"
+}
+
+variable "proxy_host" {
+  description = "Proxy host address"
+  type        = string
+  default     = ""
+}
+
+variable "proxy_port" {
+  description = "Proxy port number"
+  type        = string
+  default     = ""
+}
+
+variable "proxy_username" {
+  description = "Proxy authentication username"
+  type        = string
+  default     = ""
+}
+
+variable "proxy_password" {
+  description = "Proxy authentication password"
+  type        = string
+  default     = ""
 } 
